@@ -1,0 +1,63 @@
+# config.yaml - Full build configuration for B-U585I-IOT02A based project
+
+project:
+  name: stm32_pwm_console
+
+board:
+  mcu: STM32U585xx
+  fpu: fpv5-sp-d16
+  float-abi: hard
+  startup: cube/Drivers/CMSIS/Device/ST/STM32U5xx/Source/Templates/gcc/startup_stm32u585xx.s
+  system: cube/Core/Src/system_stm32u5xx.c
+
+paths:
+  source:
+    - src
+    - cube/Core/Src/stm32u5xx_hal_msp.c
+    - cube/Core/Src/syscalls.c
+    - cube/Core/Src/sysmem.c
+    - cube/Drivers/STM32U5xx_HAL_Driver/Src
+    - cube/Drivers/CMSIS/Device/ST/STM32U5xx/Source/Templates
+  includes:
+    - include
+    - cube/Core/Inc
+    - cube/Drivers/STM32U5xx_HAL_Driver/Inc
+    - cube/Drivers/STM32U5xx_HAL_Driver/Inc/Legacy
+    - cube/Drivers/CMSIS/Include
+    - cube/Drivers/CMSIS/Device/ST/STM32U5xx/Include
+    - cube/Drivers/CMSIS/Device/ST/STM32U5xx/Include/Templates
+  linker: linker/STM32U585xx_FLASH.ld
+
+flags:
+  defines:
+    - USE_HAL_DRIVER
+    - STM32U585xx
+    - USE_FULL_LL_DRIVER
+  cflags:
+    - -Wall
+    - -g
+    - -Og
+    - -std=c11
+    - -ffunction-sections
+    - -fdata-sections
+    - -MMD
+    - -MP
+    - -mcmse
+
+  asflags:
+    - -x assembler-with-cpp
+  ldflags:
+    - -Wl,--gc-sections
+    - -specs=nano.specs
+    - -lc
+    - -lm
+    #- -lnosys
+
+toolchain:
+  compiler: arm-none-eabi-gcc
+  objcopy: arm-none-eabi-objcopy
+  size: arm-none-eabi-size
+  cpu: cortex-m33
+
+build:
+  output_dir: build

@@ -1,0 +1,11 @@
+# .clang-format configuration
+# Style based on LLVM, which is a popular and clean C++ style guide.
+
+BasedOnStyle: LLVM
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 120
+AllowShortFunctionsOnASingleLine: None
+BreakBeforeBraces: Attach
+Standard: C11
