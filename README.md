@@ -24,7 +24,6 @@ This `main` branch represents **v2.0.0**, the FreeRTOS-enhanced version of the p
 - [Configuration](#configuration)
 - [Troubleshooting](#troubleshooting)
 - [Version History](#version-history)
-- [Future Plans](#future-plans)
 
 ---
 
@@ -296,24 +295,6 @@ The build system is configured through `config.yaml`. This file controls:
 - **Direct PWM Control**: Basic PWM functionality
 - **IDE-Independent Build**: Custom build system
 
-## Future Plans
-
-This project is the foundation for several planned enhancements:
-
-### Version 2.1.0 - Hardware Integration
-- **Potentiometer Support**: ADC with DMA for real-time brightness control
-- **Temperature Sensor**: I2C sensor integration for thermal monitoring
-- **Advanced PWM Effects**: Color gradients and pattern generation
-
-### Version 3.0.0 - Communication & IoT
-- **WiFi/Bluetooth**: Wireless control capabilities
-- **Web Interface**: HTTP server for web-based control
-- **MQTT Integration**: Cloud-based monitoring and control
-
-### Version 4.0.0 - Advanced Features
-- **Machine Learning**: Pattern recognition and predictive control
-- **Audio Visualization**: FFT-based music-reactive lighting
-- **Industrial Protocols**: Modbus, CAN bus support
 
 ---
 
