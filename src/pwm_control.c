@@ -16,20 +16,33 @@ void pwm_init(void) {
     __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, htim2.Init.Period / 2); // Red
     __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, htim2.Init.Period / 2); // Green
     __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, htim2.Init.Period / 2); // Blue
-
-
 }
 
 static void set_pwm(TIM_HandleTypeDef *htim, uint32_t channel, uint8_t val) {
+    // Ensure value is within bounds
+    if (val > MAX_PWM) val = MAX_PWM;
+
     __HAL_TIM_SET_COMPARE(htim, channel, val);
 }
 
 void pwm_set_red(uint8_t val) {
     set_pwm(&htim2, TIM_CHANNEL_1, val);
 }
+
 void pwm_set_green(uint8_t val) {
     set_pwm(&htim2, TIM_CHANNEL_2, val);
 }
+
 void pwm_set_blue(uint8_t val) {
     set_pwm(&htim2, TIM_CHANNEL_3, val);
+}
+
+// Process function called periodically from FreeRTOS task
+void pwm_control_process(void) {
+    // This function can be used for any periodic PWM-related processing
+    // For now, it's empty but can be extended for features like:
+    // - PWM fading effects
+    // - Pattern generation
+    // - Status monitoring
+    // - Error handling
 }

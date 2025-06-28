@@ -127,14 +127,14 @@ def generate_makefile(config_file: str):
 
     includes = quote_and_join(paths['includes'], "-I")
     defines = quote_and_join(flags.get('defines', []), "-D")
-    
+
     cflags = " ".join(flags.get('cflags', []))
     asflags = " ".join(flags.get('asflags', []))
-    
+
     ldflags_list = flags.get('ldflags', [])
     libs = [f for f in ldflags_list if f.startswith("-l")]
     ldflags_filtered = [f for f in ldflags_list if not f.startswith("-l")]
-    
+
     libs_str = " ".join(libs)
     ldflags_str = " ".join(ldflags_filtered)
 
@@ -168,10 +168,10 @@ def generate_makefile(config_file: str):
         float_abi=board['float-abi'],
         project_name=project['name'],
         build_dir=build['output_dir'],
-        
+
         includes=includes,
         defines=defines,
-        
+
         cflags=cflags,
         asflags=asflags,
         ldflags=ldflags_str,
@@ -181,10 +181,10 @@ def generate_makefile(config_file: str):
 
         c_src_list=" \\\n  ".join(c_src_list),
         asm_src_list=board['startup'],
-        
+
         obj_list=" \\\n  ".join(obj_list),
         asm_obj_list=" \\\n  ".join(asm_obj_list),
-        
+
         c_compile_rules="\n".join(c_compile_rules),
         asm_compile_rules="\n".join(asm_compile_rules),
     )
@@ -192,7 +192,7 @@ def generate_makefile(config_file: str):
     with open("Makefile", "w") as f:
         f.write(makefile_content)
 
-    print("✅ Makefile generated successfully.")
+    print(" Makefile generated successfully.")
 
 if __name__ == "__main__":
     generate_makefile("config.yaml")

@@ -21,14 +21,17 @@ CFLAGS  = -mcpu=$(CPU) -mthumb -mfpu=$(FPU) -mfloat-abi=$(FLOAT_ABI)
 CFLAGS += -Wall -g -Og -std=c11 -ffunction-sections -fdata-sections -MMD -MP -mcmse
 CFLAGS += -DUSE_HAL_DRIVER \
           -DSTM32U585xx \
-          -DUSE_FULL_LL_DRIVER
+          -DUSE_FULL_LL_DRIVER \
+          -DFREERTOS_USED
 CFLAGS += -Iinclude \
           -Icube/Core/Inc \
           -Icube/Drivers/STM32U5xx_HAL_Driver/Inc \
           -Icube/Drivers/STM32U5xx_HAL_Driver/Inc/Legacy \
           -Icube/Drivers/CMSIS/Include \
           -Icube/Drivers/CMSIS/Device/ST/STM32U5xx/Include \
-          -Icube/Drivers/CMSIS/Device/ST/STM32U5xx/Include/Templates
+          -Icube/Drivers/CMSIS/Device/ST/STM32U5xx/Include/Templates \
+          -Ifreertos/include/ \
+          -Ifreertos/portable/GCC/ARM_CM33_NTZ/non_secure/
 
 # Assembler flags
 ASFLAGS = -mcpu=$(CPU) -mthumb -mfpu=$(FPU) -mfloat-abi=$(FLOAT_ABI)
@@ -162,6 +165,17 @@ CSRCS = \
   cube/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_ll_usart.c \
   cube/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_ll_usb.c \
   cube/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_ll_utils.c \
+  freertos/croutine.c \
+  freertos/event_groups.c \
+  freertos/list.c \
+  freertos/portable/GCC/ARM_CM33_NTZ/non_secure/mpu_wrappers_v2_asm.c \
+  freertos/portable/GCC/ARM_CM33_NTZ/non_secure/port.c \
+  freertos/portable/GCC/ARM_CM33_NTZ/non_secure/portasm.c \
+  freertos/portable/MemMang/heap_4.c \
+  freertos/queue.c \
+  freertos/stream_buffer.c \
+  freertos/tasks.c \
+  freertos/timers.c \
   src/main.c \
   src/pwm_control.c \
   src/stm32u5xx_it.c \
@@ -289,6 +303,17 @@ OBJS = $(BUILD_DIR)/stm32u5xx_hal_msp.o \
   $(BUILD_DIR)/stm32u5xx_ll_usart.o \
   $(BUILD_DIR)/stm32u5xx_ll_usb.o \
   $(BUILD_DIR)/stm32u5xx_ll_utils.o \
+  $(BUILD_DIR)/croutine.o \
+  $(BUILD_DIR)/event_groups.o \
+  $(BUILD_DIR)/list.o \
+  $(BUILD_DIR)/mpu_wrappers_v2_asm.o \
+  $(BUILD_DIR)/port.o \
+  $(BUILD_DIR)/portasm.o \
+  $(BUILD_DIR)/heap_4.o \
+  $(BUILD_DIR)/queue.o \
+  $(BUILD_DIR)/stream_buffer.o \
+  $(BUILD_DIR)/tasks.o \
+  $(BUILD_DIR)/timers.o \
   $(BUILD_DIR)/main.o \
   $(BUILD_DIR)/pwm_control.o \
   $(BUILD_DIR)/stm32u5xx_it.o \
@@ -650,6 +675,39 @@ $(BUILD_DIR)/stm32u5xx_ll_usb.o: cube/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx
 
 $(BUILD_DIR)/stm32u5xx_ll_utils.o: cube/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_ll_utils.c Makefile | $(BUILD_DIR)
 	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/stm32u5xx_ll_utils.lst -o $@ $<
+
+$(BUILD_DIR)/croutine.o: freertos/croutine.c Makefile | $(BUILD_DIR)
+	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/croutine.lst -o $@ $<
+
+$(BUILD_DIR)/event_groups.o: freertos/event_groups.c Makefile | $(BUILD_DIR)
+	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/event_groups.lst -o $@ $<
+
+$(BUILD_DIR)/list.o: freertos/list.c Makefile | $(BUILD_DIR)
+	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/list.lst -o $@ $<
+
+$(BUILD_DIR)/mpu_wrappers_v2_asm.o: freertos/portable/GCC/ARM_CM33_NTZ/non_secure/mpu_wrappers_v2_asm.c Makefile | $(BUILD_DIR)
+	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/mpu_wrappers_v2_asm.lst -o $@ $<
+
+$(BUILD_DIR)/port.o: freertos/portable/GCC/ARM_CM33_NTZ/non_secure/port.c Makefile | $(BUILD_DIR)
+	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/port.lst -o $@ $<
+
+$(BUILD_DIR)/portasm.o: freertos/portable/GCC/ARM_CM33_NTZ/non_secure/portasm.c Makefile | $(BUILD_DIR)
+	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/portasm.lst -o $@ $<
+
+$(BUILD_DIR)/heap_4.o: freertos/portable/MemMang/heap_4.c Makefile | $(BUILD_DIR)
+	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/heap_4.lst -o $@ $<
+
+$(BUILD_DIR)/queue.o: freertos/queue.c Makefile | $(BUILD_DIR)
+	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/queue.lst -o $@ $<
+
+$(BUILD_DIR)/stream_buffer.o: freertos/stream_buffer.c Makefile | $(BUILD_DIR)
+	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/stream_buffer.lst -o $@ $<
+
+$(BUILD_DIR)/tasks.o: freertos/tasks.c Makefile | $(BUILD_DIR)
+	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/tasks.lst -o $@ $<
+
+$(BUILD_DIR)/timers.o: freertos/timers.c Makefile | $(BUILD_DIR)
+	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/timers.lst -o $@ $<
 
 $(BUILD_DIR)/main.o: src/main.c Makefile | $(BUILD_DIR)
 	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/main.lst -o $@ $<

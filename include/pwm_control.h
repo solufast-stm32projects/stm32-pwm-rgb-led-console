@@ -7,5 +7,6 @@ void pwm_init(void);
 void pwm_set_red(uint8_t val);
 void pwm_set_green(uint8_t val);
 void pwm_set_blue(uint8_t val);
+void pwm_control_process(void);
 
 #endif

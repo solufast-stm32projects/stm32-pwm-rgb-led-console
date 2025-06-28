@@ -3,8 +3,13 @@
  * @brief          : Main program body
  */
 #include "main.h"
+#include "stdio.h"
 #include "pwm_control.h"
 #include "uart_console.h"
+#include "FreeRTOS.h"
+#include "task.h"
+#include "queue.h"
+#include "timers.h"
 
 //
 // Private variables
@@ -21,6 +26,56 @@ static void MX_GPIO_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_USART1_UART_Init(void);
 
+// FreeRTOS task prototypes
+void UartConsoleTask(void *argument);
+void LedPwmTask(void *argument);
+void HeartbeatTask(void *argument);
+
+// Override HAL_InitTick for FreeRTOS compatibility
+HAL_StatusTypeDef HAL_InitTick(uint32_t TickPriority)
+{
+    // For FreeRTOS, we don't configure SysTick here
+    // FreeRTOS will configure it in vTaskStartScheduler()
+    return HAL_OK;
+}
+
+// Assert function for FreeRTOS
+void vAssertCalled(const char *file, int line)
+{
+    // Simple LED indication of assertion failure
+    HAL_GPIO_TogglePin(GPIOH, GPIO_PIN_7);
+
+    // Infinite loop - should never reach here if FreeRTOS is working
+    while (1) {
+        HAL_GPIO_TogglePin(GPIOH, GPIO_PIN_7);
+        //for(volatile int i = 0; i < 1000000; i++);
+    }
+}
+
+// Simple heartbeat task
+void HeartbeatTask(void *argument)
+{
+    while (1) {
+        HAL_GPIO_TogglePin(GPIOH, GPIO_PIN_7);
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+}
+
+// UART console task to process incoming commands
+void UartConsoleTask(void *argument) {
+    while (1) {
+        uart_console_process();  // non-blocking parser
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
+
+// LED PWM task to control LED brightness using PWM
+void LedPwmTask(void *argument) {
+    while (1) {
+        pwm_control_process();  // non-blocking PWM control
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
 
 /**
   * @brief  The application entry point.
@@ -34,21 +89,40 @@ int main(void)
   /* Configure the System Power and System Clock */
   SystemPower_Config();
   SystemClock_Config();
+  SystemCoreClockUpdate();
 
   /* Initialize essential peripherals */
   MX_GPIO_Init();
   MX_TIM2_Init();
   MX_USART1_UART_Init();
 
-  /* Initialize application modules */
+  /* Initialize PWM and UART console modules */
   pwm_init();
   uart_console_init();
 
-  /* Infinite loop */
+  /* Create FreeRTOS tasks */
+  printf("Creating FreeRTOS tasks...\n");
+
+  // Create heartbeat task (lowest priority)
+  xTaskCreate(HeartbeatTask, "Heartbeat", 128, NULL, 1, NULL);
+
+  // Create UART console task (medium priority)
+  xTaskCreate(UartConsoleTask, "UartConsole", 256, NULL, 2, NULL);
+
+  // Create LED PWM task (medium priority)
+  xTaskCreate(LedPwmTask, "LedPwm", 128, NULL, 2, NULL);
+
+  printf("Starting scheduler...\n");
+  vTaskStartScheduler();
+
+  // If you reach here, something went wrong!
+  printf("Scheduler exited unexpectedly!\n");
+
+  /* We should never reach here */
   while (1) {
-      uart_console_process();
-      HAL_GPIO_TogglePin(GPIOH, GPIO_PIN_7); // Toggle LED to indicate main loop is running
-      HAL_Delay(1000);
+    // Fail-safe loop
+    HAL_GPIO_TogglePin(GPIOH, GPIO_PIN_7);
+    for(volatile int i = 0; i < 10000000; i++);
   }
 }
 
@@ -289,3 +363,17 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
+
+void vApplicationMallocFailedHook(void) {
+    // Handle malloc failure (e.g., blink LED, log, reset, etc.)
+    __disable_irq();
+    while (1) { }
+}
+
+void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName) {
+    // Handle stack overflow (e.g., blink LED, log, reset, etc.)
+    (void)xTask;
+    (void)pcTaskName;
+    __disable_irq();
+    while (1) { }
+}

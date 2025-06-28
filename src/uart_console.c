@@ -29,13 +29,24 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
             rx_buffer[head] = current_byte;
             head = next;
         }
+        // Restart reception
         HAL_UART_Receive_IT(&UART_HANDLE, &current_byte, 1);
     }
 }
 
 // Init
 void uart_console_init(void) {
+    // Clear buffer
+    head = 0;
+    tail = 0;
+
+    // Start receiving
     HAL_UART_Receive_IT(&UART_HANDLE, &current_byte, 1);
+
+    // Send welcome message
+    printf("RGB LED PWM Control Console Ready\r\n");
+    printf("Commands: r=value, g=value, b=value (0-255)\r\n");
+    printf("Example: r=128 g=64 b=255\r\n");
 }
 
 // Parse input
@@ -48,11 +59,24 @@ static void process_line(const char *line) {
         if (value > 255) value = 255;
 
         switch (channel) {
-            case 'r': pwm_set_red(value); break;
-            case 'g': pwm_set_green(value); break;
-            case 'b': pwm_set_blue(value); break;
-            default: break;
+            case 'r':
+                pwm_set_red(value);
+                printf("Red set to %d\r\n", value);
+                break;
+            case 'g':
+                pwm_set_green(value);
+                printf("Green set to %d\r\n", value);
+                break;
+            case 'b':
+                pwm_set_blue(value);
+                printf("Blue set to %d\r\n", value);
+                break;
+            default:
+                printf("Invalid channel: %c\r\n", channel);
+                break;
         }
+    } else {
+        printf("Invalid format. Use: channel=value (e.g., r=128)\r\n");
     }
 }
 
@@ -72,6 +96,10 @@ void uart_console_process(void) {
             }
         } else if (pos < sizeof(line) - 1) {
             line[pos++] = c;
+        } else {
+            // Buffer overflow, reset
+            pos = 0;
+            printf("Line too long, ignored\r\n");
         }
     }
 }

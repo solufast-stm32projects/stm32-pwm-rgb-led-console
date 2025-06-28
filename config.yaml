@@ -18,6 +18,16 @@ paths:
     - cube/Core/Src/sysmem.c
     - cube/Drivers/STM32U5xx_HAL_Driver/Src
     - cube/Drivers/CMSIS/Device/ST/STM32U5xx/Source/Templates
+    - freertos/tasks.c
+    - freertos/croutine.c
+    - freertos/event_groups.c
+    - freertos/list.c
+    - freertos/queue.c
+    - freertos/stream_buffer.c
+    - freertos/tasks.c
+    - freertos/timers.c
+    - freertos/portable/MemMang/heap_4.c
+    - freertos/portable/GCC/ARM_CM33_NTZ/non_secure
   includes:
     - include
     - cube/Core/Inc
@@ -26,6 +36,9 @@ paths:
     - cube/Drivers/CMSIS/Include
     - cube/Drivers/CMSIS/Device/ST/STM32U5xx/Include
     - cube/Drivers/CMSIS/Device/ST/STM32U5xx/Include/Templates
+    - freertos/include/
+    - freertos/portable/GCC/ARM_CM33_NTZ/non_secure/
+
   linker: linker/STM32U585xx_FLASH.ld
 
 flags:
@@ -33,6 +46,7 @@ flags:
     - USE_HAL_DRIVER
     - STM32U585xx
     - USE_FULL_LL_DRIVER
+    - FREERTOS_USED
   cflags:
     - -Wall
     - -g
