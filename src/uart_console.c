@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stdbool.h>
+#include "auto_mode.h"
 
 // Assuming UART1
 #define UART_HANDLE   huart1
@@ -110,6 +112,99 @@ static void process_line(const char *line) {
             pwm_set_blue(b_val);
             printf("Blue set to %d\r\n", b_val);
         }
+        return;
+    }
+
+    // --- Auto mode commands ---
+    if (strncmp(line, "auto=on", 7) == 0) {
+        auto_mode_set_enabled(1);
+        printf("Auto mode enabled\r\n");
+        return;
+    }
+    if (strncmp(line, "auto=off", 8) == 0) {
+        auto_mode_set_enabled(0);
+        printf("Auto mode disabled\r\n");
+        return;
+    }
+    if (strncmp(line, "auto=mode=cyclic", 16) == 0) {
+        auto_mode_set_mode(0); // AUTO_MODE_CYCLIC
+        printf("Auto mode set to CYCLIC\r\n");
+        return;
+    }
+    if (strncmp(line, "auto=mode=random", 16) == 0) {
+        auto_mode_set_mode(1); // AUTO_MODE_RANDOM
+        printf("Auto mode set to RANDOM\r\n");
+        return;
+    }
+    if (strncmp(line, "auto=interval=", 14) == 0) {
+        int val = atoi(line + 14);
+        if (val < 10) val = 10;
+        auto_mode_set_interval(val);
+        printf("Auto mode interval set to %d ms\r\n", val);
+        return;
+    }
+    // --- Fade commands ---
+    if (strncmp(line, "fade=on", 7) == 0) {
+        auto_mode_set_fade_enabled(1);
+        printf("Fade enabled\r\n");
+        return;
+    }
+    if (strncmp(line, "fade=off", 8) == 0) {
+        auto_mode_set_fade_enabled(0);
+        printf("Fade disabled\r\n");
+        return;
+    }
+    if (strncmp(line, "fade=speed=", 11) == 0) {
+        int val = atoi(line + 11);
+        if (val < 1) val = 1;
+        auto_mode_set_fade_speed(val);
+        printf("Fade speed set to %d ms/step\r\n", val);
+        return;
+    }
+    // --- Pattern commands ---
+    if (strncmp(line, "pattern=rainbow", 15) == 0) {
+        auto_mode_set_pattern(PATTERN_RAINBOW);
+        printf("Pattern set to RAINBOW\r\n");
+        return;
+    }
+    if (strncmp(line, "pattern=fire", 12) == 0) {
+        auto_mode_set_pattern(PATTERN_FIRE);
+        printf("Pattern set to FIRE\r\n");
+        return;
+    }
+    if (strncmp(line, "pattern=police", 14) == 0) {
+        auto_mode_set_pattern(PATTERN_POLICE);
+        printf("Pattern set to POLICE\r\n");
+        return;
+    }
+    if (strncmp(line, "pattern=party", 13) == 0) {
+        auto_mode_set_pattern(PATTERN_PARTY);
+        printf("Pattern set to PARTY\r\n");
+        return;
+    }
+    if (strncmp(line, "pattern=off", 11) == 0) {
+        auto_mode_set_pattern(PATTERN_OFF);
+        printf("Pattern OFF\r\n");
+        return;
+    }
+    // --- Status command ---
+    if (strncmp(line, "status", 6) == 0) {
+        auto_mode_print_status();
+        return;
+    }
+    // --- Brightness command ---
+    if (strncmp(line, "brightness=", 11) == 0) {
+        int val = atoi(line + 11);
+        if (val < 0) val = 0;
+        if (val > 255) val = 255;
+        auto_mode_set_brightness(val);
+        printf("Brightness set to %d\r\n", val);
+        return;
+    }
+    // --- Surprise command ---
+    if (strncmp(line, "surprise", 8) == 0) {
+        auto_mode_surprise();
+        printf("Surprise!\r\n");
         return;
     }
 

@@ -1,58 +1,44 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [2.0.0] - 2024-12-19
-
+## [2.0.1] - 2024-12-22
 ### Added
-- **FreeRTOS Integration**: Complete real-time operating system support
-- **Multi-Task Architecture**: Three independent tasks with proper priorities
-  - HeartbeatTask (Priority 1): System monitoring and LED heartbeat
-  - UartConsoleTask (Priority 2): UART command processing
-  - LedPwmTask (Priority 2): PWM control and effects processing
-- **Advanced UART Console**: Interrupt-driven command processing with ring buffer
-- **Modular PWM Control**: Separate PWM control module with bounds checking
-- **Configuration Management**: YAML-based FreeRTOS configuration with automatic header generation
-- **Enhanced Error Handling**: Comprehensive error hooks and assertions
-- **Real-Time Performance**: Deterministic timing with FreeRTOS scheduler
-- **Memory Management**: Dynamic memory allocation with heap_4
-- **Interrupt Handling**: Proper FreeRTOS interrupt integration
+- Auto mode (cyclic/random) for hands-free color cycling
+- Predefined patterns: rainbow, fire, police, party
+- Smooth fade/transition effects (with configurable speed)
+- Adjustable global brightness
+- "Surprise me" mode for random fun
+- Status query command
+- Modular refactor: each pattern and mode in its own function
+- All pattern/auto intervals now user-configurable
+- Cyclic mode now uses a true HSV color wheel for vibrant transitions
+- Documentation polish: new README, changelog, and command reference
 
 ### Changed
-- **Build System**: Enhanced to support FreeRTOS compilation
-- **Project Structure**: Reorganized to separate FreeRTOS tasks and modules
-- **Documentation**: Completely updated README.md for FreeRTOS version
-- **Configuration**: Moved from hardcoded FreeRTOS settings to YAML configuration
+- Codebase is now more modular, readable, and ready for further hacking
 
-### Fixed
-- **Interrupt Priority**: Corrected STM32U5 interrupt priority configuration (8-bit vs 3-bit)
-- **SysTick Configuration**: Fixed HAL SysTick conflict with FreeRTOS
-- **Vector Table**: Resolved duplicate interrupt handler definitions
-- **Assertion Handling**: Added proper vAssertCalled function declaration
+---
 
-### Technical Details
-- **CPU Clock**: 160 MHz
-- **FreeRTOS Tick Rate**: 1000 Hz
-- **Max Priorities**: 5
-- **Heap Size**: 8 KB
-- **Stack Overflow Detection**: Enabled
-- **Interrupt Priorities**: Optimized for STM32U5 (8-bit priority system)
+## [2.0.0] - 2024-12-19
+### Added
+- FreeRTOS integration: true multitasking (UART, PWM, heartbeat tasks)
+- Advanced UART console for real-time RGB LED control
+- Modular PWM control and UART parser
+- Modern, script-based build system (no STM32CubeIDE required)
+- Error handling, assertion hooks, and robust task structure
+
+### Changed
+- Project structure reorganized for RTOS and modularity
+- Documentation updated for RTOS version
+
+---
 
 ## [1.0.0] - 2024-12-18
-
 ### Added
-- **Bare Metal Implementation**: Simple polling-based approach
-- **Basic UART Console**: Simple command processing
-- **Direct PWM Control**: Basic PWM functionality for RGB LED
-- **IDE-Independent Build**: Custom build system with config.yaml
-- **Open-Source Debugging**: OpenOCD and GDB support
-- **Modular Code**: Clean separation between application logic and drivers
+- Bare-metal RGB LED control via PWM and UART
+- Simple command parser for setting R/G/B values
+- Standalone, no RTOS, polling-based main loop
+- IDE-independent build system
 
-### Technical Details
-- **CPU Clock**: 160 MHz
-- **PWM Frequency**: ~625 kHz (160MHz / 256)
-- **UART Baud Rate**: 115200
-- **Build System**: Python-based Makefile generation
+---
+
+**See README.md for full feature and usage details.**

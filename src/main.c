@@ -10,6 +10,7 @@
 #include "task.h"
 #include "queue.h"
 #include "timers.h"
+#include "auto_mode.h"
 
 //
 // Private variables
@@ -30,6 +31,12 @@ static void MX_USART1_UART_Init(void);
 void UartConsoleTask(void *argument);
 void LedPwmTask(void *argument);
 void HeartbeatTask(void *argument);
+
+int __io_putchar(int ch)
+{
+    HAL_UART_Transmit(&huart1, (uint8_t*)&ch, 1, HAL_MAX_DELAY);
+    return ch;
+}
 
 // Override HAL_InitTick for FreeRTOS compatibility
 HAL_StatusTypeDef HAL_InitTick(uint32_t TickPriority)
@@ -72,7 +79,11 @@ void UartConsoleTask(void *argument) {
 // LED PWM task to control LED brightness using PWM
 void LedPwmTask(void *argument) {
     while (1) {
-        pwm_control_process();  // non-blocking PWM control
+        if (auto_mode_get_enabled()) {
+            auto_mode_process();
+        } else {
+            pwm_control_process();
+        }
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
@@ -99,6 +110,7 @@ int main(void)
   /* Initialize PWM and UART console modules */
   pwm_init();
   uart_console_init();
+  // auto_mode_load_settings(); // Uncomment to test saving at boot
 
   /* Create FreeRTOS tasks */
   printf("Creating FreeRTOS tasks...\n");
