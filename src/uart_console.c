@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "auto_mode.h"
+#include "tof_control.h"
 
 // Assuming UART1
 #define UART_HANDLE   huart1
@@ -205,6 +206,22 @@ static void process_line(const char *line) {
     if (strncmp(line, "surprise", 8) == 0) {
         auto_mode_surprise();
         printf("Surprise!\r\n");
+        return;
+    }
+    // --- ToF commands ---
+    if (strncmp(line, "tof=on", 6) == 0) {
+        tof_control_enable(true);
+        printf("ToF proximity mode enabled\r\n");
+        return;
+    }
+    if (strncmp(line, "tof=off", 7) == 0) {
+        tof_control_enable(false);
+        printf("ToF proximity mode disabled\r\n");
+        return;
+    }
+    if (strncmp(line, "tof=status", 10) == 0) {
+        printf("ToF mode: %s\r\n", tof_control_is_enabled() ? "ON" : "OFF");
+        printf("Last distance: %u mm\r\n", (unsigned)tof_control_get_distance());
         return;
     }
 

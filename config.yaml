@@ -28,6 +28,9 @@ paths:
     - freertos/timers.c
     - freertos/portable/MemMang/heap_4.c
     - freertos/portable/GCC/ARM_CM33_NTZ/non_secure
+    - lib/vl53l5cx/VL53L5CX_ULD_API/src
+    - lib/vl53l5cx/Platform/platform.c
+    - src/i2c.c
   includes:
     - include
     - cube/Core/Inc
@@ -38,6 +41,8 @@ paths:
     - cube/Drivers/CMSIS/Device/ST/STM32U5xx/Include/Templates
     - freertos/include/
     - freertos/portable/GCC/ARM_CM33_NTZ/non_secure/
+    - lib/vl53l5cx/VL53L5CX_ULD_API/inc
+    - lib/vl53l5cx/Platform/
 
   linker: linker/STM32U585xx_FLASH.ld
 

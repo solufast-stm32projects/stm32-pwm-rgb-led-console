@@ -31,7 +31,9 @@ CFLAGS += -Iinclude \
           -Icube/Drivers/CMSIS/Device/ST/STM32U5xx/Include \
           -Icube/Drivers/CMSIS/Device/ST/STM32U5xx/Include/Templates \
           -Ifreertos/include/ \
-          -Ifreertos/portable/GCC/ARM_CM33_NTZ/non_secure/
+          -Ifreertos/portable/GCC/ARM_CM33_NTZ/non_secure/ \
+          -Ilib/vl53l5cx/VL53L5CX_ULD_API/inc \
+          -Ilib/vl53l5cx/Platform/
 
 # Assembler flags
 ASFLAGS = -mcpu=$(CPU) -mthumb -mfpu=$(FPU) -mfloat-abi=$(FLOAT_ABI)
@@ -176,10 +178,17 @@ CSRCS = \
   freertos/stream_buffer.c \
   freertos/tasks.c \
   freertos/timers.c \
+  lib/vl53l5cx/Platform/platform.c \
+  lib/vl53l5cx/VL53L5CX_ULD_API/src/vl53l5cx_api.c \
+  lib/vl53l5cx/VL53L5CX_ULD_API/src/vl53l5cx_plugin_detection_thresholds.c \
+  lib/vl53l5cx/VL53L5CX_ULD_API/src/vl53l5cx_plugin_motion_indicator.c \
+  lib/vl53l5cx/VL53L5CX_ULD_API/src/vl53l5cx_plugin_xtalk.c \
   src/auto_mode.c \
+  src/i2c.c \
   src/main.c \
   src/pwm_control.c \
   src/stm32u5xx_it.c \
+  src/tof_control.c \
   src/uart_console.c
 
 ASRCS = \
@@ -315,10 +324,17 @@ OBJS = $(BUILD_DIR)/stm32u5xx_hal_msp.o \
   $(BUILD_DIR)/stream_buffer.o \
   $(BUILD_DIR)/tasks.o \
   $(BUILD_DIR)/timers.o \
+  $(BUILD_DIR)/platform.o \
+  $(BUILD_DIR)/vl53l5cx_api.o \
+  $(BUILD_DIR)/vl53l5cx_plugin_detection_thresholds.o \
+  $(BUILD_DIR)/vl53l5cx_plugin_motion_indicator.o \
+  $(BUILD_DIR)/vl53l5cx_plugin_xtalk.o \
   $(BUILD_DIR)/auto_mode.o \
+  $(BUILD_DIR)/i2c.o \
   $(BUILD_DIR)/main.o \
   $(BUILD_DIR)/pwm_control.o \
   $(BUILD_DIR)/stm32u5xx_it.o \
+  $(BUILD_DIR)/tof_control.o \
   $(BUILD_DIR)/uart_console.o
 AS_OBJS = $(BUILD_DIR)/startup_stm32u585xx.o
 
@@ -711,8 +727,26 @@ $(BUILD_DIR)/tasks.o: freertos/tasks.c Makefile | $(BUILD_DIR)
 $(BUILD_DIR)/timers.o: freertos/timers.c Makefile | $(BUILD_DIR)
 	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/timers.lst -o $@ $<
 
+$(BUILD_DIR)/platform.o: lib/vl53l5cx/Platform/platform.c Makefile | $(BUILD_DIR)
+	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/platform.lst -o $@ $<
+
+$(BUILD_DIR)/vl53l5cx_api.o: lib/vl53l5cx/VL53L5CX_ULD_API/src/vl53l5cx_api.c Makefile | $(BUILD_DIR)
+	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/vl53l5cx_api.lst -o $@ $<
+
+$(BUILD_DIR)/vl53l5cx_plugin_detection_thresholds.o: lib/vl53l5cx/VL53L5CX_ULD_API/src/vl53l5cx_plugin_detection_thresholds.c Makefile | $(BUILD_DIR)
+	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/vl53l5cx_plugin_detection_thresholds.lst -o $@ $<
+
+$(BUILD_DIR)/vl53l5cx_plugin_motion_indicator.o: lib/vl53l5cx/VL53L5CX_ULD_API/src/vl53l5cx_plugin_motion_indicator.c Makefile | $(BUILD_DIR)
+	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/vl53l5cx_plugin_motion_indicator.lst -o $@ $<
+
+$(BUILD_DIR)/vl53l5cx_plugin_xtalk.o: lib/vl53l5cx/VL53L5CX_ULD_API/src/vl53l5cx_plugin_xtalk.c Makefile | $(BUILD_DIR)
+	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/vl53l5cx_plugin_xtalk.lst -o $@ $<
+
 $(BUILD_DIR)/auto_mode.o: src/auto_mode.c Makefile | $(BUILD_DIR)
 	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/auto_mode.lst -o $@ $<
+
+$(BUILD_DIR)/i2c.o: src/i2c.c Makefile | $(BUILD_DIR)
+	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/i2c.lst -o $@ $<
 
 $(BUILD_DIR)/main.o: src/main.c Makefile | $(BUILD_DIR)
 	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/main.lst -o $@ $<
@@ -722,6 +756,9 @@ $(BUILD_DIR)/pwm_control.o: src/pwm_control.c Makefile | $(BUILD_DIR)
 
 $(BUILD_DIR)/stm32u5xx_it.o: src/stm32u5xx_it.c Makefile | $(BUILD_DIR)
 	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/stm32u5xx_it.lst -o $@ $<
+
+$(BUILD_DIR)/tof_control.o: src/tof_control.c Makefile | $(BUILD_DIR)
+	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/tof_control.lst -o $@ $<
 
 $(BUILD_DIR)/uart_console.o: src/uart_console.c Makefile | $(BUILD_DIR)
 	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/uart_console.lst -o $@ $<

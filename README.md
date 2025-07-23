@@ -63,6 +63,8 @@ I hope you enjoy hacking and extending it as much as I did building it!
 | `brightness=NNN`       | Set global brightness (0-255)               |
 | `status`               | Print current settings/status               |
 | `surprise`             | Random fun mode                             |
+| `tof=on` / `tof=off`      | Enable/disable proximity-based color mode (ToF)   |
+| `tof=status`              | Print ToF mode status and last measured distance  |
 
 ## Example Usage
 - Set LED to purple: `r=128 g=0 b=128`
@@ -71,6 +73,8 @@ I hope you enjoy hacking and extending it as much as I did building it!
 - Lower brightness: `brightness=64`
 - Get current status: `status`
 - Try something wild: `surprise`
+- Enable proximity-based color: `tof=on`
+- Check ToF status: `tof=status`
 
 ## Credits
 - Project by Solomon Negussie TESEMA (solomon.negussie.tesema@gmail.com)

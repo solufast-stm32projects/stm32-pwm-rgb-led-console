@@ -2,6 +2,7 @@
  * @file           : main.c
  * @brief          : Main program body
  */
+#include "stm32u5xx_hal.h"
 #include "main.h"
 #include "stdio.h"
 #include "pwm_control.h"
@@ -11,13 +12,20 @@
 #include "queue.h"
 #include "timers.h"
 #include "auto_mode.h"
+#include "tof_control.h"
+#include "i2c.h"
+#include <stdint.h>
+
+// Forward declaration for busy_wait_ms
+static void busy_wait_ms(uint32_t ms);
 
 //
 // Private variables
 //
 TIM_HandleTypeDef htim2;
 UART_HandleTypeDef huart1;
-
+I2C_HandleTypeDef hi2c1;
+I2C_HandleTypeDef hi2c2;
 //
 // Private function prototypes
 //
@@ -26,11 +34,14 @@ static void SystemPower_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_USART1_UART_Init(void);
+static void MX_I2C2_Init(void);
+static void MX_I2C1_Init(void);
 
 // FreeRTOS task prototypes
 void UartConsoleTask(void *argument);
 void LedPwmTask(void *argument);
 void HeartbeatTask(void *argument);
+void StartToFTaskAfterDelay(void *argument);
 
 int __io_putchar(int ch)
 {
@@ -64,7 +75,7 @@ void HeartbeatTask(void *argument)
 {
     while (1) {
         HAL_GPIO_TogglePin(GPIOH, GPIO_PIN_7);
-        vTaskDelay(pdMS_TO_TICKS(500));
+        vTaskDelay(pdMS_TO_TICKS(500)); 
     }
 }
 
@@ -106,10 +117,30 @@ int main(void)
   MX_GPIO_Init();
   MX_TIM2_Init();
   MX_USART1_UART_Init();
+  MX_I2C1_Init();
+  MX_I2C2_Init();
+  
+  // GPIO_PinState state = HAL_GPIO_ReadPin(Mems_VL53_xshut_GPIO_Port, Mems_VL53_xshut_Pin);
+  // printf("PH1 (Mems_VL53_xshut) state after init: %s\r\n", state == GPIO_PIN_SET ? "HIGH" : "LOW");
+
+
+  /* Scan I2C2 bus for devices and print ID reg */
+  // i2c2_scan_and_read_id();
+  // test_lps22hh_whoami();
 
   /* Initialize PWM and UART console modules */
   pwm_init();
   uart_console_init();
+
+  /* Initialize ToF control */
+  bool tof_ok = tof_control_init();
+  if (tof_ok) {
+      printf("ToF sensor ready.\r\n");
+  } else {
+      printf("ToF sensor init failed! ToF task not started.\r\n");
+  }
+
+
   // auto_mode_load_settings(); // Uncomment to test saving at boot
 
   /* Create FreeRTOS tasks */
@@ -124,15 +155,22 @@ int main(void)
   // Create LED PWM task (medium priority)
   xTaskCreate(LedPwmTask, "LedPwm", 128, NULL, 2, NULL);
 
+  // Create ToF task after delay if init succeeded
+  if (tof_ok) {
+      xTaskCreate(StartToFTaskAfterDelay, "ToFDelay", 256, NULL, 2, NULL);
+  }
+
+ // test_lps22hh_whoami();
+
   printf("Starting scheduler...\n");
   vTaskStartScheduler();
 
   // If you reach here, something went wrong!
   printf("Scheduler exited unexpectedly!\n");
-
   /* We should never reach here */
   while (1) {
     // Fail-safe loop
+    printf("[ERROR] Scheduler exited, blinking LED.\n");
     HAL_GPIO_TogglePin(GPIOH, GPIO_PIN_7);
     for(volatile int i = 0; i < 10000000; i++);
   }
@@ -299,50 +337,171 @@ static void MX_USART1_UART_Init(void)
   * @param None
   * @retval None
   */
-static void MX_GPIO_Init(void)
+  static void MX_GPIO_Init(void)
 {
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
 
-  /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOH_CLK_ENABLE();
+    // Enable GPIO clocks
+    __HAL_RCC_GPIOC_CLK_ENABLE();
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+    __HAL_RCC_GPIOG_CLK_ENABLE();
+    __HAL_RCC_GPIOH_CLK_ENABLE();
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOH, LED_GREEN_Pin, GPIO_PIN_RESET);
+    // --- USER Button ---
+    GPIO_InitStruct.Pin = USER_Button_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(USER_Button_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : USER_Button_Pin */
-  GPIO_InitStruct.Pin = USER_Button_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(USER_Button_GPIO_Port, &GPIO_InitStruct);
+    // --- Onboard GREEN LED (PH7) ---
+    GPIO_InitStruct.Pin = LED_GREEN_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
+    HAL_GPIO_WritePin(GPIOH, LED_GREEN_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : LED_GREEN_Pin */
-  GPIO_InitStruct.Pin = LED_GREEN_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
+    // --- PWM LED pins (PA0, PA1, PA2) ---
+    GPIO_InitStruct.Pin = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Alternate = GPIO_AF1_TIM2;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /* TIM2 PWM Output GPIO Configuration: PA0 -> TIM2_CH1, PA1 -> TIM2_CH2, PA2 -> TIM2_CH3 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.Alternate = GPIO_AF1_TIM2;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+    // --- STMod+ Mode Select: PH13 HIGH to enable GPIO instead of SPI1 ---
+    GPIO_InitStruct.Pin = GPIO_PIN_13;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
+    HAL_GPIO_WritePin(GPIOH, GPIO_PIN_13, GPIO_PIN_SET); // Enable GPIO mode
 
-  /*
-   * Set PH13 to HIGH to enable GPIO functionality on STMod+ connector
-   * instead of the default SPI1 mode.
-   */
-  GPIO_InitStruct.Pin = GPIO_PIN_13;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
-  HAL_GPIO_WritePin(GPIOH, GPIO_PIN_13, GPIO_PIN_SET);
+    // --- VL53L5CX GPIOs ---
+    // PH1 = LPn_C (Low Power shutdown / XSHUT)
+    GPIO_InitStruct.Pin = Mems_VL53_xshut_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;  // Must be output
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(Mems_VL53_xshut_GPIO_Port, &GPIO_InitStruct);
+
+    // --- VL53L5CX Power-up Sequence for B-U585I-IOT02A ---
+    // Use only XSHUT (shutdown) pin: Mems_VL53_xshut_Pin (PH1)
+    // Set XSHUT LOW (sensor in shutdown)
+    HAL_GPIO_WritePin(Mems_VL53_xshut_GPIO_Port, Mems_VL53_xshut_Pin, GPIO_PIN_RESET);
+    busy_wait_ms(10);
+
+    // Set XSHUT HIGH (sensor boots up)
+    HAL_GPIO_WritePin(Mems_VL53_xshut_GPIO_Port, Mems_VL53_xshut_Pin, GPIO_PIN_SET);
+    busy_wait_ms(500); // Wait for sensor to boot
+
+    // --- I2C2 pins (PH4 = SCL, PH5 = SDA) ---
+    GPIO_InitStruct.Pin = GPIO_PIN_4 | GPIO_PIN_5;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;         // Open-drain for I2C
+    GPIO_InitStruct.Pull = GPIO_PULLUP;             // Pull-up required for I2C
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Alternate = GPIO_AF4_I2C2;      // AF4 for I2C2 on PH4/PH5
+    HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
 }
+
+
+/**
+  * @brief I2C1 Initialization Function
+  * @param None
+  * @retval None
+  */
+  static void MX_I2C1_Init(void)
+  {
+  
+    /* USER CODE BEGIN I2C1_Init 0 */
+  
+    /* USER CODE END I2C1_Init 0 */
+  
+    /* USER CODE BEGIN I2C1_Init 1 */
+  
+    /* USER CODE END I2C1_Init 1 */
+    hi2c1.Instance = I2C1;
+    hi2c1.Init.Timing = 0x30909DEC;
+    hi2c1.Init.OwnAddress1 = 0;
+    hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+    hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+    hi2c1.Init.OwnAddress2 = 0;
+    hi2c1.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
+    hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+    hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+    if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+    {
+      Error_Handler();
+    }
+  
+    /** Configure Analogue filter
+    */
+    if (HAL_I2CEx_ConfigAnalogFilter(&hi2c1, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
+    {
+      Error_Handler();
+    }
+  
+    /** Configure Digital filter
+    */
+    if (HAL_I2CEx_ConfigDigitalFilter(&hi2c1, 0) != HAL_OK)
+    {
+      Error_Handler();
+    }
+    /* USER CODE BEGIN I2C1_Init 2 */
+  
+    /* USER CODE END I2C1_Init 2 */
+  
+  }
+
+/**
+  * @brief I2C2 Initialization Function
+  * @param None
+  * @retval None
+  */
+  static void MX_I2C2_Init(void)
+  {
+  
+    /* USER CODE BEGIN I2C2_Init 0 */
+  
+    /* USER CODE END I2C2_Init 0 */
+  
+    /* USER CODE BEGIN I2C2_Init 1 */
+  
+    /* USER CODE END I2C2_Init 1 */
+    hi2c2.Instance = I2C2;
+    //hi2c2.Init.Timing = 0x30A0A7FB; // 100 kHz timing for STM32U5 @ 80MHz
+    hi2c2.Init.Timing = 0x10C0ECFF; // 400kHz for STM32U5
+    hi2c2.Init.OwnAddress1 = 0;
+    hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+    hi2c2.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+    hi2c2.Init.OwnAddress2 = 0;
+    hi2c2.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
+    hi2c2.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+    hi2c2.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+    if (HAL_I2C_Init(&hi2c2) != HAL_OK)
+    {
+      Error_Handler();
+    }
+  
+    /** Configure Analogue filter
+    */
+    if (HAL_I2CEx_ConfigAnalogFilter(&hi2c2, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
+    {
+      Error_Handler();
+    }
+  
+    /** Configure Digital filter
+    */
+    if (HAL_I2CEx_ConfigDigitalFilter(&hi2c2, 0) != HAL_OK)
+    {
+      Error_Handler();
+    }
+    /* USER CODE BEGIN I2C2_Init 2 */
+  
+    /* USER CODE END I2C2_Init 2 */
+  
+  }
 
 /**
   * @brief  This function is executed in case of error occurrence.
@@ -388,4 +547,17 @@ void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName) {
     (void)pcTaskName;
     __disable_irq();
     while (1) { }
+}
+
+void StartToFTaskAfterDelay(void *argument) {
+    vTaskDelay(pdMS_TO_TICKS(500));
+    xTaskCreate(tof_control_task, "ToF", 512, NULL, 2, NULL);
+    printf("ToF task created after delay.\r\n");
+    vTaskDelete(NULL);
+}
+
+// Simple busy-wait delay for pre-RTOS use
+static void busy_wait_ms(uint32_t ms) {
+    volatile uint32_t count = ms * 8000; // ~8k cycles per ms at 160MHz
+    while (count--) __NOP();
 }
