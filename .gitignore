@@ -99,6 +99,13 @@ ENV/
 env.bak/
 venv.bak/
 
+# Personal/Private files
+ROADMAP.md
+PERSONAL_NOTES.md
+TODO_PRIVATE.md
+*.private
+*.personal
+
 # Distribution / packaging
 .Python
 build/
