@@ -21,7 +21,7 @@ extern uint32_t SystemCoreClock;
 #define configTICK_RATE_HZ 1000
 #define configMAX_PRIORITIES 5
 #define configMINIMAL_STACK_SIZE 128
-#define configTOTAL_HEAP_SIZE 8192
+#define configTOTAL_HEAP_SIZE 16 * 1024
 #define configMAX_TASK_NAME_LEN 16
 #define configUSE_16_BIT_TICKS 0
 #define configUSE_PREEMPTION 1
@@ -81,6 +81,7 @@ extern uint32_t SystemCoreClock;
 #define INCLUDE_uxTaskGetStackHighWaterMark2 1
 #define INCLUDE_pxTaskGetStackStart 1
 #define INCLUDE_vTaskGetInfo 1
-#define configASSERT(x) ( ( x ) ? ( void ) 0 : vAssertCalled( __FILE__, __LINE__ ) )
+// #define configASSERT(x) ( ( x ) ? ( void ) 0 : vAssertCalled( __FILE__, __LINE__ ) )
+#define configASSERT(x) if ((x) == 0) vAssertCalled(__FILE__, __LINE__)
 
 #endif /* FREERTOS_CONFIG_H */

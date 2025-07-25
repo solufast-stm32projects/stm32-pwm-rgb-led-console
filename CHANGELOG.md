@@ -1,5 +1,30 @@
 # Changelog
 
+## [3.0.0] - 2024-12-23
+### Added
+- **ToF (Time-of-Flight) sensor integration** for proximity-based brightness control
+- New UART commands: `tof=on/off` and `tof=status` for ToF mode control
+- Automatic brightness adjustment based on distance from ToF sensor
+- **System health monitoring** - Industry-standard embedded system diagnostics
+- New diagnostic commands: `health`, `performance`, and `reset` for system monitoring
+- Centralized LED PWM control through dedicated `led_renderer.c` module
+- Improved project structure with better separation of concerns
+
+### Changed
+- **Major architectural improvement**: LED PWM handling now centralized in `led_renderer.c`
+- Enhanced modularity: ToF functionality isolated in dedicated module
+- Better code organization and maintainability
+- Updated documentation to reflect new ToF capabilities and system monitoring features
+
+### Technical Details
+- ToF sensor provides real-time distance measurements
+- Brightness automatically adjusts based on proximity (closer = brighter)
+- Maintains all existing RGB control features while adding proximity awareness
+- Seamless integration with existing auto modes and patterns
+- **System health monitoring includes**: FreeRTOS task statistics, memory usage tracking, performance metrics, error counters, and uptime monitoring
+
+---
+
 ## [2.0.1] - 2024-12-22
 ### Added
 - Auto mode (cyclic/random) for hands-free color cycling

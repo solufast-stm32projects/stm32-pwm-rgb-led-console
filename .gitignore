@@ -252,4 +252,9 @@ Icon
 .AppleDesktop
 Network Trash Folder
 Temporary Items
-.apdisk 
+.apdisk
+
+# Personal strategy documents (keep private)
+VISIBILITY_STRATEGY.md
+LINKEDIN_POST_TEMPLATE.md
+personal-strategy/

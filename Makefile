@@ -185,9 +185,11 @@ CSRCS = \
   lib/vl53l5cx/VL53L5CX_ULD_API/src/vl53l5cx_plugin_xtalk.c \
   src/auto_mode.c \
   src/i2c.c \
+  src/led_renderer.c \
   src/main.c \
   src/pwm_control.c \
   src/stm32u5xx_it.c \
+  src/system_health.c \
   src/tof_control.c \
   src/uart_console.c
 
@@ -331,9 +333,11 @@ OBJS = $(BUILD_DIR)/stm32u5xx_hal_msp.o \
   $(BUILD_DIR)/vl53l5cx_plugin_xtalk.o \
   $(BUILD_DIR)/auto_mode.o \
   $(BUILD_DIR)/i2c.o \
+  $(BUILD_DIR)/led_renderer.o \
   $(BUILD_DIR)/main.o \
   $(BUILD_DIR)/pwm_control.o \
   $(BUILD_DIR)/stm32u5xx_it.o \
+  $(BUILD_DIR)/system_health.o \
   $(BUILD_DIR)/tof_control.o \
   $(BUILD_DIR)/uart_console.o
 AS_OBJS = $(BUILD_DIR)/startup_stm32u585xx.o
@@ -748,6 +752,9 @@ $(BUILD_DIR)/auto_mode.o: src/auto_mode.c Makefile | $(BUILD_DIR)
 $(BUILD_DIR)/i2c.o: src/i2c.c Makefile | $(BUILD_DIR)
 	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/i2c.lst -o $@ $<
 
+$(BUILD_DIR)/led_renderer.o: src/led_renderer.c Makefile | $(BUILD_DIR)
+	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/led_renderer.lst -o $@ $<
+
 $(BUILD_DIR)/main.o: src/main.c Makefile | $(BUILD_DIR)
 	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/main.lst -o $@ $<
 
@@ -756,6 +763,9 @@ $(BUILD_DIR)/pwm_control.o: src/pwm_control.c Makefile | $(BUILD_DIR)
 
 $(BUILD_DIR)/stm32u5xx_it.o: src/stm32u5xx_it.c Makefile | $(BUILD_DIR)
 	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/stm32u5xx_it.lst -o $@ $<
+
+$(BUILD_DIR)/system_health.o: src/system_health.c Makefile | $(BUILD_DIR)
+	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/system_health.lst -o $@ $<
 
 $(BUILD_DIR)/tof_control.o: src/tof_control.c Makefile | $(BUILD_DIR)
 	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/tof_control.lst -o $@ $<

@@ -12,7 +12,7 @@ freertos_config:
   configTICK_RATE_HZ: 1000
   configMAX_PRIORITIES: 5
   configMINIMAL_STACK_SIZE: 128
-  configTOTAL_HEAP_SIZE: 8192
+  configTOTAL_HEAP_SIZE: 16 * 1024
   configMAX_TASK_NAME_LEN: 16
   configUSE_16_BIT_TICKS: 0
   configUSE_PREEMPTION: 1

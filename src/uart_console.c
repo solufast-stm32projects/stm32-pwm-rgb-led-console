@@ -8,6 +8,9 @@
 #include <stdbool.h>
 #include "auto_mode.h"
 #include "tof_control.h"
+#include "led_renderer.h"
+#include "system_health.h"
+#include "version.h"
 
 // Assuming UART1
 #define UART_HANDLE   huart1
@@ -48,10 +51,11 @@ void uart_console_init(void) {
     HAL_UART_Receive_IT(&UART_HANDLE, &current_byte, 1);
 
     // Send welcome message
-    printf("RGB LED PWM Control Console Ready\r\n");
+    printf("RGB LED PWM Control Console v%s Ready\r\n", APP_VERSION_STRING);
     printf("Commands: r=value, g=value, b=value (0-255)\r\n");
     printf("Single: r=128, g=64, b=255\r\n");
     printf("Multi:  r=128 g=64 b=255\r\n");
+    printf("System: health, performance, reset, help\r\n");
 }
 
 // Parse input
@@ -101,40 +105,87 @@ static void process_line(const char *line) {
 
     // If we parsed multiple channels, apply them all
     if (parsed_count > 1) {
-        if (r_val >= 0) {
-            pwm_set_red(r_val);
-            printf("Red set to %d\r\n", r_val);
+        if (r_val >= 0 && g_val >= 0 && b_val >= 0) {
+            led_renderer_set_mode(LED_MODE_MANUAL);
+            led_renderer_update_color(r_val, g_val, b_val);
+            printf("RGB set to %d %d %d\r\n", r_val, g_val, b_val);
+            system_health_increment_uart_commands();
         }
-        if (g_val >= 0) {
-            pwm_set_green(g_val);
-            printf("Green set to %d\r\n", g_val);
-        }
-        if (b_val >= 0) {
-            pwm_set_blue(b_val);
-            printf("Blue set to %d\r\n", b_val);
-        }
+        return;
+    }
+
+    // --- System Health Commands ---
+    if (strncmp(line, "health", 6) == 0) {
+        system_health_print_report();
+        return;
+    }
+    if (strncmp(line, "performance", 11) == 0) {
+        performance_metrics_print_report();
+        return;
+    }
+    if (strncmp(line, "reset", 5) == 0) {
+        system_error_reset_recovery();
+        printf("System error state cleared\r\n");
+        return;
+    }
+    if (strncmp(line, "help", 4) == 0) {
+        printf("\r\n=== COMMAND HELP ===\r\n");
+        printf("RGB Control:\r\n");
+        printf("  r=128 g=64 b=255    - Set RGB values\r\n");
+        printf("  r=255               - Set red only\r\n");
+        printf("Auto Mode:\r\n");
+        printf("  auto=on/off         - Enable/disable auto mode\r\n");
+        printf("  auto=mode=cyclic    - Set cyclic color mode\r\n");
+        printf("  auto=mode=random    - Set random color mode\r\n");
+        printf("  auto=interval=500   - Set interval (ms)\r\n");
+        printf("Fade Control:\r\n");
+        printf("  fade=on/off         - Enable/disable fade\r\n");
+        printf("  fade=speed=20       - Set fade speed (ms)\r\n");
+        printf("Patterns:\r\n");
+        printf("  pattern=rainbow     - Rainbow pattern\r\n");
+        printf("  pattern=fire        - Fire pattern\r\n");
+        printf("  pattern=police      - Police lights\r\n");
+        printf("  pattern=party       - Random party mode\r\n");
+        printf("  pattern=off         - Disable pattern\r\n");
+        printf("ToF Control:\r\n");
+        printf("  tof=on/off          - Enable/disable ToF proximity\r\n");
+        printf("  tof=status          - Show ToF status\r\n");
+        printf("System:\r\n");
+        printf("  health              - System health report\r\n");
+        printf("  performance         - Performance metrics\r\n");
+        printf("  reset               - Clear error state\r\n");
+        printf("  status              - Current status\r\n");
+        printf("  brightness=128      - Set global brightness\r\n");
+        printf("  surprise            - Random configuration\r\n");
+        printf("==================\r\n");
         return;
     }
 
     // --- Auto mode commands ---
     if (strncmp(line, "auto=on", 7) == 0) {
         auto_mode_set_enabled(1);
+        led_renderer_set_mode(LED_MODE_AUTO);
         printf("Auto mode enabled\r\n");
+        system_health_increment_uart_commands();
         return;
     }
     if (strncmp(line, "auto=off", 8) == 0) {
         auto_mode_set_enabled(0);
+        led_renderer_set_mode(LED_MODE_MANUAL);
         printf("Auto mode disabled\r\n");
+        system_health_increment_uart_commands();
         return;
     }
     if (strncmp(line, "auto=mode=cyclic", 16) == 0) {
         auto_mode_set_mode(0); // AUTO_MODE_CYCLIC
         printf("Auto mode set to CYCLIC\r\n");
+        system_health_increment_uart_commands();
         return;
     }
     if (strncmp(line, "auto=mode=random", 16) == 0) {
         auto_mode_set_mode(1); // AUTO_MODE_RANDOM
         printf("Auto mode set to RANDOM\r\n");
+        system_health_increment_uart_commands();
         return;
     }
     if (strncmp(line, "auto=interval=", 14) == 0) {
@@ -142,50 +193,62 @@ static void process_line(const char *line) {
         if (val < 10) val = 10;
         auto_mode_set_interval(val);
         printf("Auto mode interval set to %d ms\r\n", val);
+        system_health_increment_uart_commands();
         return;
     }
     // --- Fade commands ---
     if (strncmp(line, "fade=on", 7) == 0) {
-        auto_mode_set_fade_enabled(1);
+        led_renderer_set_fade_enabled(1);
+        auto_mode_set_fade_enabled(1); // Keep auto_mode in sync
         printf("Fade enabled\r\n");
+        system_health_increment_uart_commands();
         return;
     }
     if (strncmp(line, "fade=off", 8) == 0) {
-        auto_mode_set_fade_enabled(0);
+        led_renderer_set_fade_enabled(0);
+        auto_mode_set_fade_enabled(0); // Keep auto_mode in sync
         printf("Fade disabled\r\n");
+        system_health_increment_uart_commands();
         return;
     }
     if (strncmp(line, "fade=speed=", 11) == 0) {
         int val = atoi(line + 11);
         if (val < 1) val = 1;
-        auto_mode_set_fade_speed(val);
+        led_renderer_set_fade_speed(val);
+        auto_mode_set_fade_speed(val); // Keep auto_mode in sync
         printf("Fade speed set to %d ms/step\r\n", val);
+        system_health_increment_uart_commands();
         return;
     }
     // --- Pattern commands ---
     if (strncmp(line, "pattern=rainbow", 15) == 0) {
         auto_mode_set_pattern(PATTERN_RAINBOW);
         printf("Pattern set to RAINBOW\r\n");
+        system_health_increment_uart_commands();
         return;
     }
     if (strncmp(line, "pattern=fire", 12) == 0) {
         auto_mode_set_pattern(PATTERN_FIRE);
         printf("Pattern set to FIRE\r\n");
+        system_health_increment_uart_commands();
         return;
     }
     if (strncmp(line, "pattern=police", 14) == 0) {
         auto_mode_set_pattern(PATTERN_POLICE);
         printf("Pattern set to POLICE\r\n");
+        system_health_increment_uart_commands();
         return;
     }
     if (strncmp(line, "pattern=party", 13) == 0) {
         auto_mode_set_pattern(PATTERN_PARTY);
         printf("Pattern set to PARTY\r\n");
+        system_health_increment_uart_commands();
         return;
     }
     if (strncmp(line, "pattern=off", 11) == 0) {
         auto_mode_set_pattern(PATTERN_OFF);
         printf("Pattern OFF\r\n");
+        system_health_increment_uart_commands();
         return;
     }
     // --- Status command ---
@@ -200,28 +263,36 @@ static void process_line(const char *line) {
         if (val > 255) val = 255;
         auto_mode_set_brightness(val);
         printf("Brightness set to %d\r\n", val);
+        system_health_increment_uart_commands();
         return;
     }
     // --- Surprise command ---
     if (strncmp(line, "surprise", 8) == 0) {
         auto_mode_surprise();
         printf("Surprise!\r\n");
+        system_health_increment_uart_commands();
         return;
     }
     // --- ToF commands ---
     if (strncmp(line, "tof=on", 6) == 0) {
         tof_control_enable(true);
+        led_renderer_set_mode(LED_MODE_TOF);
         printf("ToF proximity mode enabled\r\n");
+        system_health_increment_uart_commands();
         return;
     }
     if (strncmp(line, "tof=off", 7) == 0) {
         tof_control_enable(false);
+        led_renderer_set_mode(LED_MODE_MANUAL);
         printf("ToF proximity mode disabled\r\n");
+        system_health_increment_uart_commands();
         return;
     }
     if (strncmp(line, "tof=status", 10) == 0) {
-        printf("ToF mode: %s\r\n", tof_control_is_enabled() ? "ON" : "OFF");
-        printf("Last distance: %u mm\r\n", (unsigned)tof_control_get_distance());
+        printf("ToF Status (v%s):\r\n", APP_VERSION_STRING);
+        printf("  Mode: %s\r\n", tof_control_is_enabled() ? "ON" : "OFF");
+        printf("  Last distance: %u mm\r\n", (unsigned)tof_control_get_distance());
+        system_health_increment_uart_commands();
         return;
     }
 
@@ -229,19 +300,16 @@ static void process_line(const char *line) {
     if (sscanf(line, "%c=%d", &channel, &value) == 2) {
         if (value < 0) value = 0;
         if (value > 255) value = 255;
-
         switch (channel) {
             case 'r':
-                pwm_set_red(value);
-                printf("Red set to %d\r\n", value);
-                break;
             case 'g':
-                pwm_set_green(value);
-                printf("Green set to %d\r\n", value);
-                break;
             case 'b':
-                pwm_set_blue(value);
-                printf("Blue set to %d\r\n", value);
+                led_renderer_set_mode(LED_MODE_MANUAL);
+                if (channel == 'r') led_renderer_update_color(value, g_val >= 0 ? g_val : 0, b_val >= 0 ? b_val : 0);
+                if (channel == 'g') led_renderer_update_color(r_val >= 0 ? r_val : 0, value, b_val >= 0 ? b_val : 0);
+                if (channel == 'b') led_renderer_update_color(r_val >= 0 ? r_val : 0, g_val >= 0 ? g_val : 0, value);
+                printf("%c set to %d\r\n", channel, value);
+                system_health_increment_uart_commands();
                 break;
             default:
                 printf("Invalid channel: %c\r\n", channel);
@@ -249,6 +317,7 @@ static void process_line(const char *line) {
         }
     } else {
         printf("Invalid format. Use: channel=value (e.g., r=128) or r=128 g=64 b=255\r\n");
+        printf("Type 'help' for command list\r\n");
     }
 }
 

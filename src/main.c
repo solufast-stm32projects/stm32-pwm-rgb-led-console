@@ -5,16 +5,20 @@
 #include "stm32u5xx_hal.h"
 #include "main.h"
 #include "stdio.h"
-#include "pwm_control.h"
-#include "uart_console.h"
+#include <stdint.h>
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
 #include "timers.h"
+#include "i2c.h"
+
 #include "auto_mode.h"
 #include "tof_control.h"
-#include "i2c.h"
-#include <stdint.h>
+#include "pwm_control.h"
+#include "uart_console.h"
+#include "led_renderer.h"
+#include "system_health.h"
+
 
 // Forward declaration for busy_wait_ms
 static void busy_wait_ms(uint32_t ms);
@@ -42,6 +46,8 @@ void UartConsoleTask(void *argument);
 void LedPwmTask(void *argument);
 void HeartbeatTask(void *argument);
 void StartToFTaskAfterDelay(void *argument);
+void StartLedRenderer(void *argument);
+void SystemHealthTask(void *argument);
 
 int __io_putchar(int ch)
 {
@@ -60,6 +66,9 @@ HAL_StatusTypeDef HAL_InitTick(uint32_t TickPriority)
 // Assert function for FreeRTOS
 void vAssertCalled(const char *file, int line)
 {
+    // Enhanced assertion handling with system health
+    system_error_handler(ERROR_STACK_OVERFLOW, file, line);
+
     // Simple LED indication of assertion failure
     HAL_GPIO_TogglePin(GPIOH, GPIO_PIN_7);
 
@@ -75,7 +84,7 @@ void HeartbeatTask(void *argument)
 {
     while (1) {
         HAL_GPIO_TogglePin(GPIOH, GPIO_PIN_7);
-        vTaskDelay(pdMS_TO_TICKS(500)); 
+        vTaskDelay(pdMS_TO_TICKS(500));
     }
 }
 
@@ -92,10 +101,38 @@ void LedPwmTask(void *argument) {
     while (1) {
         if (auto_mode_get_enabled()) {
             auto_mode_process();
+            system_health_increment_auto_cycles();
         } else {
             pwm_control_process();
         }
         vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
+
+void StartToFTaskAfterDelay(void *argument) {
+  vTaskDelay(pdMS_TO_TICKS(50));
+  if (xTaskCreate(tof_control_task, "ToF", 256, NULL, 2, NULL) != pdPASS) {
+      printf("[ERROR] Failed to create ToF task!\r\n");
+      system_error_handler(ERROR_MALLOC_FAILED, __FILE__, __LINE__);
+  } else {
+      printf("[ToF] Task created.\r\n");
+  }
+  vTaskDelete(NULL);
+}
+
+void StartLedRenderer(void *argument) {
+  while(1) {
+    led_renderer_task();
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
+}
+
+// System health monitoring task
+void SystemHealthTask(void *argument) {
+    while(1) {
+        system_health_update();
+        performance_metrics_update();
+        vTaskDelay(pdMS_TO_TICKS(1000)); // Update every second
     }
 }
 
@@ -119,7 +156,7 @@ int main(void)
   MX_USART1_UART_Init();
   MX_I2C1_Init();
   MX_I2C2_Init();
-  
+
   // GPIO_PinState state = HAL_GPIO_ReadPin(Mems_VL53_xshut_GPIO_Port, Mems_VL53_xshut_Pin);
   // printf("PH1 (Mems_VL53_xshut) state after init: %s\r\n", state == GPIO_PIN_SET ? "HIGH" : "LOW");
 
@@ -131,6 +168,11 @@ int main(void)
   /* Initialize PWM and UART console modules */
   pwm_init();
   uart_console_init();
+  auto_mode_init();
+
+  /* Initialize system health monitoring */
+  system_health_init();
+  performance_metrics_init();
 
   /* Initialize ToF control */
   bool tof_ok = tof_control_init();
@@ -138,7 +180,10 @@ int main(void)
       printf("ToF sensor ready.\r\n");
   } else {
       printf("ToF sensor init failed! ToF task not started.\r\n");
+      system_error_handler(ERROR_TOF_SENSOR_FAIL, __FILE__, __LINE__);
   }
+
+  led_renderer_init();
 
 
   // auto_mode_load_settings(); // Uncomment to test saving at boot
@@ -147,18 +192,54 @@ int main(void)
   printf("Creating FreeRTOS tasks...\n");
 
   // Create heartbeat task (lowest priority)
-  xTaskCreate(HeartbeatTask, "Heartbeat", 128, NULL, 1, NULL);
+
+  if (xTaskCreate(HeartbeatTask, "Heartbeat", 128, NULL, 1, NULL) != pdPASS) {
+    printf("[ERROR] Failed to create Heartbeat task!\r\n");
+    system_error_handler(ERROR_MALLOC_FAILED, __FILE__, __LINE__);
+  }
+  printf("Free heap: %u bytes\n", xPortGetFreeHeapSize());
+
 
   // Create UART console task (medium priority)
-  xTaskCreate(UartConsoleTask, "UartConsole", 256, NULL, 2, NULL);
+  if (xTaskCreate(UartConsoleTask, "UartConsole", 256, NULL, 2, NULL) != pdPASS) {
+    printf("[ERROR] Failed to create UartConsoleTask task!\r\n");
+    system_error_handler(ERROR_MALLOC_FAILED, __FILE__, __LINE__);
+  }
+  printf("Free heap: %u bytes\n", xPortGetFreeHeapSize());
 
   // Create LED PWM task (medium priority)
-  xTaskCreate(LedPwmTask, "LedPwm", 128, NULL, 2, NULL);
+
+  if (xTaskCreate(LedPwmTask, "LedPwm", 128, NULL, 2, NULL) != pdPASS) {
+        printf("[ERROR] Failed to create  UART console task!\r\n");
+        system_error_handler(ERROR_MALLOC_FAILED, __FILE__, __LINE__);
+  }
+  printf("Free heap: %u bytes\n", xPortGetFreeHeapSize());
+
+
+    // Create RGB-LED control/renderer task
+    if (xTaskCreate(StartLedRenderer, "LEDControl", 256, NULL, 2, NULL) != pdPASS) {
+        printf("[ERROR] Failed to create LED renderer task!\r\n");
+        system_error_handler(ERROR_MALLOC_FAILED, __FILE__, __LINE__);
+    }
+    printf("Free heap: %u bytes\n", xPortGetFreeHeapSize());
+
+    // Create system health monitoring task
+    if (xTaskCreate(SystemHealthTask, "SystemHealth", 256, NULL, 1, NULL) != pdPASS) {
+        printf("[ERROR] Failed to create system health task!\r\n");
+        system_error_handler(ERROR_MALLOC_FAILED, __FILE__, __LINE__);
+    }
+    printf("Free heap: %u bytes\n", xPortGetFreeHeapSize());
+
 
   // Create ToF task after delay if init succeeded
   if (tof_ok) {
-      xTaskCreate(StartToFTaskAfterDelay, "ToFDelay", 256, NULL, 2, NULL);
+    if (xTaskCreate(StartToFTaskAfterDelay, "ToFDelay", 256, NULL, 2, NULL) != pdPASS) {
+        printf("[ERROR] Failed to create ToF task!\r\n");
+        system_error_handler(ERROR_MALLOC_FAILED, __FILE__, __LINE__);
+    }
   }
+  printf("Free heap: %u bytes\n", xPortGetFreeHeapSize());
+
 
  // test_lps22hh_whoami();
 
@@ -413,13 +494,13 @@ static void MX_USART1_UART_Init(void)
   */
   static void MX_I2C1_Init(void)
   {
-  
+
     /* USER CODE BEGIN I2C1_Init 0 */
-  
+
     /* USER CODE END I2C1_Init 0 */
-  
+
     /* USER CODE BEGIN I2C1_Init 1 */
-  
+
     /* USER CODE END I2C1_Init 1 */
     hi2c1.Instance = I2C1;
     hi2c1.Init.Timing = 0x30909DEC;
@@ -434,14 +515,14 @@ static void MX_USART1_UART_Init(void)
     {
       Error_Handler();
     }
-  
+
     /** Configure Analogue filter
     */
     if (HAL_I2CEx_ConfigAnalogFilter(&hi2c1, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
     {
       Error_Handler();
     }
-  
+
     /** Configure Digital filter
     */
     if (HAL_I2CEx_ConfigDigitalFilter(&hi2c1, 0) != HAL_OK)
@@ -449,9 +530,9 @@ static void MX_USART1_UART_Init(void)
       Error_Handler();
     }
     /* USER CODE BEGIN I2C1_Init 2 */
-  
+
     /* USER CODE END I2C1_Init 2 */
-  
+
   }
 
 /**
@@ -461,13 +542,13 @@ static void MX_USART1_UART_Init(void)
   */
   static void MX_I2C2_Init(void)
   {
-  
+
     /* USER CODE BEGIN I2C2_Init 0 */
-  
+
     /* USER CODE END I2C2_Init 0 */
-  
+
     /* USER CODE BEGIN I2C2_Init 1 */
-  
+
     /* USER CODE END I2C2_Init 1 */
     hi2c2.Instance = I2C2;
     //hi2c2.Init.Timing = 0x30A0A7FB; // 100 kHz timing for STM32U5 @ 80MHz
@@ -483,14 +564,14 @@ static void MX_USART1_UART_Init(void)
     {
       Error_Handler();
     }
-  
+
     /** Configure Analogue filter
     */
     if (HAL_I2CEx_ConfigAnalogFilter(&hi2c2, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
     {
       Error_Handler();
     }
-  
+
     /** Configure Digital filter
     */
     if (HAL_I2CEx_ConfigDigitalFilter(&hi2c2, 0) != HAL_OK)
@@ -498,9 +579,9 @@ static void MX_USART1_UART_Init(void)
       Error_Handler();
     }
     /* USER CODE BEGIN I2C2_Init 2 */
-  
+
     /* USER CODE END I2C2_Init 2 */
-  
+
   }
 
 /**
@@ -536,28 +617,28 @@ void assert_failed(uint8_t *file, uint32_t line)
 #endif /* USE_FULL_ASSERT */
 
 void vApplicationMallocFailedHook(void) {
-    // Handle malloc failure (e.g., blink LED, log, reset, etc.)
+    printf("[FATAL] Malloc failed!\r\n");
     __disable_irq();
-    while (1) { }
+    while (1) {
+        HAL_GPIO_TogglePin(GPIOH, GPIO_PIN_7);
+        busy_wait_ms(200);
+    }
 }
 
 void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName) {
-    // Handle stack overflow (e.g., blink LED, log, reset, etc.)
-    (void)xTask;
-    (void)pcTaskName;
+    printf("[FATAL] Stack overflow in task: %s\r\n", pcTaskName);
     __disable_irq();
-    while (1) { }
+    while (1) {
+        HAL_GPIO_TogglePin(GPIOH, GPIO_PIN_7);
+        busy_wait_ms(200);
+    }
 }
 
-void StartToFTaskAfterDelay(void *argument) {
-    vTaskDelay(pdMS_TO_TICKS(500));
-    xTaskCreate(tof_control_task, "ToF", 512, NULL, 2, NULL);
-    printf("ToF task created after delay.\r\n");
-    vTaskDelete(NULL);
-}
 
 // Simple busy-wait delay for pre-RTOS use
 static void busy_wait_ms(uint32_t ms) {
     volatile uint32_t count = ms * 8000; // ~8k cycles per ms at 160MHz
     while (count--) __NOP();
 }
+
+

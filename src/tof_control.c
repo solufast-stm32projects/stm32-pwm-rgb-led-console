@@ -9,7 +9,9 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "stm32u5xx_hal.h"
-#include "vl53l5cx_api.h"
+#include "vl53l5cx_api.h" // For VL53L5CX_Configuration, VL53L5CX_ResultsData, etc.
+#include "auto_mode.h"
+#include "led_renderer.h"
 
 // --- Constants for VL53L5CX ---
 #define TOF_I2C_ADDR         0x29          // 7-bit I2C address
@@ -29,6 +31,7 @@ static bool tof_enabled = false;
 static bool tof_init_ok = false;
 static uint16_t last_distance = 0;
 static float filtered_distance = 0.0f;
+static uint8_t current_brightness = 255;
 
 // --- Sensor Handle ---
 static VL53L5CX_Configuration tof_dev;
@@ -106,6 +109,11 @@ bool tof_control_init(void) {
 
 void tof_control_enable(bool enable) {
     tof_enabled = enable;
+    if (enable) {
+        led_renderer_set_mode(LED_MODE_TOF);
+    } else {
+        led_renderer_set_mode(LED_MODE_MANUAL); // or LED_MODE_AUTO if auto_mode_get_enabled()
+    }
 }
 
 bool tof_control_is_enabled(void) {
@@ -116,9 +124,18 @@ uint16_t tof_control_get_distance(void) {
     return last_distance;
 }
 
+void tof_control_set_brightness(uint8_t val) {
+    current_brightness = val;
+}
+
+uint8_t tof_control_get_brightness(void) {
+    return current_brightness;
+}
+
+
 // --- Main FreeRTOS Task ---
+static VL53L5CX_ResultsData results;
 void tof_control_task(void *argument) {
-    VL53L5CX_ResultsData results;
     uint8_t is_ready = 0;
     uint8_t resolution = 0;
     uint16_t last_printed = 0;
@@ -157,11 +174,8 @@ void tof_control_task(void *argument) {
 
                         last_distance = (uint16_t)filtered_distance;
                         uint8_t brightness = map_distance_to_brightness(last_distance);
+                        tof_control_set_brightness(brightness);  // Store for renderer to use
 
-                        // Set all RGB LEDs equally
-                        pwm_set_red(brightness);
-                        pwm_set_green(brightness);
-                        pwm_set_blue(brightness);
 
                         // Optional: Only print if distance changes notably
                         if (abs((int)last_distance - (int)last_printed) > 40) {
@@ -170,17 +184,14 @@ void tof_control_task(void *argument) {
                         }
                     } else {
                         // No valid target: turn off LEDs
-                        pwm_set_red(0);
-                        pwm_set_green(0);
-                        pwm_set_blue(0);
+                        tof_control_set_brightness(0);
+
                     }
                 }
             }
         } else {
             // Sensor is disabled: turn off LEDs
-            pwm_set_red(0);
-            pwm_set_green(0);
-            pwm_set_blue(0);
+            tof_control_set_brightness(0);
         }
 
         // Wait a bit before checking again

@@ -31,6 +31,7 @@ paths:
     - lib/vl53l5cx/VL53L5CX_ULD_API/src
     - lib/vl53l5cx/Platform/platform.c
     - src/i2c.c
+    - src/system_health.c
   includes:
     - include
     - cube/Core/Inc

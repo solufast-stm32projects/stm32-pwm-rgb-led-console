@@ -1,12 +1,14 @@
 #include <stdint.h>
 #include <stdbool.h>
-#include "auto_mode.h"
-#include "pwm_control.h"
 #include <stdlib.h>
 #include <time.h>
 #include "stm32u5xx_hal.h"
 #include <stdio.h>
 #include <string.h>
+#include "auto_mode.h"
+#include "pwm_control.h"
+#include "led_renderer.h"
+#include "version.h"
 
 // Internal state
 static auto_mode_settings_t auto_mode_settings = {
@@ -26,8 +28,6 @@ static auto_mode_settings_t auto_mode_settings = {
 static uint8_t r = 255, g = 0, b = 0;
 static uint8_t phase = 0;
 static uint32_t last_tick = 0;
-static uint8_t cur_r = 255, cur_g = 0, cur_b = 0;
-static uint8_t tgt_r = 255, tgt_g = 0, tgt_b = 0;
 
 // Helper: get current tick (ms)
 static uint32_t get_tick(void) {
@@ -45,12 +45,16 @@ void auto_mode_init(void) {
     auto_mode_settings.fade_enabled = false;
     auto_mode_settings.fade_speed_ms = 20;
     r = 255; g = 0; b = 0; phase = 0; last_tick = 0;
-    cur_r = tgt_r = 255; cur_g = tgt_g = 0; cur_b = tgt_b = 0;
     srand((unsigned int)get_tick());
 }
 
 void auto_mode_set_enabled(bool enable) {
     auto_mode_settings.enabled = enable;
+    if (enable) {
+        led_renderer_set_mode(LED_MODE_AUTO);
+    } else {
+        led_renderer_set_mode(LED_MODE_MANUAL);
+    }
 }
 
 bool auto_mode_get_enabled(void) {
@@ -75,12 +79,14 @@ uint32_t auto_mode_get_interval(void) {
 
 void auto_mode_set_fade_enabled(bool enable) {
     auto_mode_settings.fade_enabled = enable;
+    led_renderer_set_fade_enabled(enable);
 }
 bool auto_mode_get_fade_enabled(void) {
     return auto_mode_settings.fade_enabled;
 }
 void auto_mode_set_fade_speed(uint32_t ms) {
     auto_mode_settings.fade_speed_ms = ms;
+    led_renderer_set_fade_speed(ms);
 }
 uint32_t auto_mode_get_fade_speed(void) {
     return auto_mode_settings.fade_speed_ms;
@@ -104,51 +110,14 @@ static uint8_t scale_brightness(uint8_t val) {
     return (uint16_t)val * auto_mode_settings.brightness / 255;
 }
 // --- Override PWM set functions to apply brightness ---
-static void pwm_set_scaled(uint8_t r, uint8_t g, uint8_t b) {
-    pwm_set_red(scale_brightness(r));
-    pwm_set_green(scale_brightness(g));
-    pwm_set_blue(scale_brightness(b));
-}
-
-// Helper: next color in cyclic mode (simple RGB wheel)
-static void next_cyclic_color(void) {
-    switch (phase) {
-        case 0: if (g < 255) g++; else phase = 1; break;
-        case 1: if (r > 0) r--; else phase = 2; break;
-        case 2: if (b < 255) b++; else phase = 3; break;
-        case 3: if (g > 0) g--; else phase = 4; break;
-        case 4: if (r < 255) r++; else phase = 5; break;
-        case 5: if (b > 0) b--; else phase = 0; break;
-    }
-    set_target_color(r, g, b);
-}
-
-// Helper: set random color
-static void set_random_color(void) {
-    uint8_t rr = rand() % 256;
-    uint8_t gg = rand() % 256;
-    uint8_t bb = rand() % 256;
-    set_target_color(rr, gg, bb);
-}
+// static void pwm_set_scaled(uint8_t r, uint8_t g, uint8_t b) { ... }
 
 // Helper: set target color (for fade)
 static void set_target_color(uint8_t rr, uint8_t gg, uint8_t bb) {
-    tgt_r = rr; tgt_g = gg; tgt_b = bb;
     auto_mode_settings.last_r = rr;
     auto_mode_settings.last_g = gg;
     auto_mode_settings.last_b = bb;
-}
-// Helper: update current color toward target (one step)
-static int fade_step(void) {
-    int changed = 0;
-    if (cur_r < tgt_r) { cur_r++; changed = 1; }
-    else if (cur_r > tgt_r) { cur_r--; changed = 1; }
-    if (cur_g < tgt_g) { cur_g++; changed = 1; }
-    else if (cur_g > tgt_g) { cur_g--; changed = 1; }
-    if (cur_b < tgt_b) { cur_b++; changed = 1; }
-    else if (cur_b > tgt_b) { cur_b--; changed = 1; }
-    pwm_set_scaled(cur_r, cur_g, cur_b);
-    return changed;
+    led_renderer_update_color(rr, gg, bb);
 }
 
 typedef struct {
@@ -157,7 +126,6 @@ typedef struct {
     int police_state;
     // Add more as needed
     uint32_t next_interval;
-    uint32_t last_fade;
 } auto_pattern_state_t;
 
 static auto_pattern_state_t pattern_state = {0};
@@ -252,21 +220,6 @@ static void handle_auto_mode(uint32_t now) {
     }
 }
 
-static void handle_fade(uint32_t now) {
-    static uint32_t last_fade = 0;
-    if (auto_mode_settings.fade_enabled) {
-        if (now - last_fade >= auto_mode_settings.fade_speed_ms) {
-            fade_step();
-            last_fade = now;
-        }
-    } else {
-        if (cur_r != tgt_r || cur_g != tgt_g || cur_b != tgt_b) {
-            cur_r = tgt_r; cur_g = tgt_g; cur_b = tgt_b;
-            pwm_set_scaled(cur_r, cur_g, cur_b);
-        }
-    }
-}
-
 void auto_mode_process(void) {
     if (!auto_mode_settings.enabled) return;
     uint32_t now = get_tick();
@@ -280,18 +233,19 @@ void auto_mode_process(void) {
             handle_auto_mode(now);
             break;
     }
-    handle_fade(now);
+    // No fade handling here - led_renderer handles all fade logic
 }
 
 // --- Status print ---
 void auto_mode_print_status(void) {
     printf("Status:\r\n");
+    printf("  Version: %s (%s)\r\n", APP_VERSION_STRING, APP_VERSION_DESCRIPTION);
     printf("  Auto: %d\r\n", auto_mode_settings.enabled);
     printf("  Mode: %s\r\n", auto_mode_settings.mode == AUTO_MODE_CYCLIC ? "cyclic" : "random");
     printf("  Pattern: %d\r\n", auto_mode_settings.pattern);
     printf("  Interval: %lu ms\r\n", auto_mode_settings.interval_ms);
-    printf("  Fade: %d\r\n", auto_mode_settings.fade_enabled);
-    printf("  Fade speed: %lu ms\r\n", auto_mode_settings.fade_speed_ms);
+    printf("  Fade: %d\r\n", led_renderer_get_fade_enabled());
+    printf("  Fade speed: %lu ms\r\n", led_renderer_get_fade_speed());
     printf("  Brightness: %u\r\n", auto_mode_settings.brightness);
     printf("  Last color: R=%u G=%u B=%u\r\n", auto_mode_settings.last_r, auto_mode_settings.last_g, auto_mode_settings.last_b);
 }
@@ -300,8 +254,12 @@ void auto_mode_surprise(void) {
     auto_mode_set_enabled(1);
     auto_mode_set_mode(rand() % 2);
     auto_mode_set_pattern(rand() % 5);
-    auto_mode_set_fade_enabled(rand() % 2);
-    auto_mode_set_fade_speed(5 + rand() % 50);
+    bool fade_on = rand() % 2;
+    auto_mode_set_fade_enabled(fade_on);
+    led_renderer_set_fade_enabled(fade_on);
+    uint32_t fade_speed = 5 + rand() % 50;
+    auto_mode_set_fade_speed(fade_speed);
+    led_renderer_set_fade_speed(fade_speed);
     auto_mode_set_brightness(64 + rand() % 192);
     set_target_color(rand() % 256, rand() % 256, rand() % 256);
-} 
+}

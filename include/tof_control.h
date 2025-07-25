@@ -19,4 +19,8 @@ uint16_t tof_control_get_distance(void);
 // FreeRTOS task function for ToF processing
 void tof_control_task(void *argument);
 
+void tof_control_set_brightness(uint8_t val);
+uint8_t tof_control_get_brightness(void);
+
+
 #endif // TOF_CONTROL_H 
